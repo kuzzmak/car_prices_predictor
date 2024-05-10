@@ -6,6 +6,7 @@ import pandas as pd
 import torch
 import torch.nn.functional as F
 
+from dataset import CarAdDataset
 from model import MLP
 
 TRANSMISSON_MAPPING = {
@@ -39,8 +40,8 @@ def load_data(data_path: str) -> pd.DataFrame:
 
     additional_fields_json = get_additional_fields_json(df)
     additional_fields_keys = list(additional_fields_json.iloc[0].keys())
-    # for key in additional_fields_keys:
-    #     print(key)
+    for key in additional_fields_keys:
+        print(key)
 
     def extract_field_from_json_object(json_object, field):
         return json_object.get(field)
@@ -122,7 +123,6 @@ def load_data(data_path: str) -> pd.DataFrame:
           transmission_type_nan_vals.sum())
 
     # | fuel_consumption_nan_vals | co2_emission_nan_vals | transmission_type_nan_vals
-    # | fuel_consumption_nan_vals | co2_emission_nan_vals | transmission_type_nan_vals
     to_remove = year_manufactured_nan_vals | mileage_nan_vals | motor_size_nan_vals | motor_power_nan_vals
     df = df[~to_remove]
 
@@ -173,14 +173,17 @@ def load_data(data_path: str) -> pd.DataFrame:
 
 if __name__ == '__main__':
     data_path = r'ML_zadatak_auti.csv'
+    dataset_fields = ['yearManufactured', 'mileage', 'motorSize', 'motorPower',]
+                      #'fuelConsumption', 'co2Emission', 'transmissionTypeId']
+    dataset = CarAdDataset(data_path, dataset_fields)
+    # print(dataset._raw_data['mileage'])
+    # X = load_data(data_path)
 
-    X = load_data(data_path)
+    # model = MLP([4, 10, 1])
 
-    model = MLP()
+    # res = model(X)
 
-    res = model(X)
-
-    print(res.shape)
+    # print(res.shape)
 
     # normalized_mileage, mileage_mean, mileage_std = z_score(mileage)
 
