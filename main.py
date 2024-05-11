@@ -6,6 +6,7 @@ import pandas as pd
 import torch
 import torch.nn.functional as F
 
+from common import FieldType
 from dataset import CarAdDataset
 from model import MLP
 
@@ -173,7 +174,16 @@ def load_data(data_path: str) -> pd.DataFrame:
 
 if __name__ == '__main__':
     data_path = r'ML_zadatak_auti.csv'
-    dataset_fields = ['yearManufactured', 'mileage', 'motorSize', 'motorPower',]
+    dataset_fields = [
+        ('yearManufactured', FieldType.NUMERICAL),
+        ('mileage', FieldType.NUMERICAL),
+        ('motorSize', FieldType.NUMERICAL),
+        ('motorPower', FieldType.NUMERICAL),
+        ('fuelConsumption', FieldType.NUMERICAL),
+        ('co2Emission', FieldType.NUMERICAL),
+        ('transmissionTypeId', FieldType.CATEGORICAL),
+    ]
+    # dataset_fields = ['yearManufactured', 'mileage', 'motorSize', 'motorPower',]
                       #'fuelConsumption', 'co2Emission', 'transmissionTypeId']
     dataset = CarAdDataset(data_path, dataset_fields)
     # print(dataset._raw_data['mileage'])
