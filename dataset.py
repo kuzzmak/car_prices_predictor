@@ -81,12 +81,17 @@ class CarAdDataset(Dataset):
             prop.name = field.name
             raw_data[field.name] = prop
 
-        
+        raw_data['price'] = self._df['price']
+        raw_data['condition_id'] = self._df['condition_id']
+
         return raw_data
 
     def _preprocess_data(self):
         null_entries = []
         preprocessed_data = {}
+        
+        train_val_df = self._raw_data[self._raw_data['condition_id'] == 20]
+        print('train val size: ', len(train_val_df))
 
         # limit the range of values for each field because some values are
         # invalid
@@ -119,7 +124,8 @@ class CarAdDataset(Dataset):
         to_remove = reduce(lambda x, y: x | y, null_entries)
 
         # remove all rows that had in any column some null value
-        preprocessed_data = {key: preprocessed_data[key][~to_remove] for key in preprocessed_data}
+        preprocessed_data = {
+            key: preprocessed_data[key][~to_remove] for key in preprocessed_data}
 
         # construct and normalize features
         features = {}
@@ -129,8 +135,11 @@ class CarAdDataset(Dataset):
             features[field.name] = f
 
         # convert features to tensors
-        tensors = {key: features[key].to_tensor() for key in features}
-
+        feat_tensors = {key: features[key].to_tensor() for key in features}
+        
+        
+        print(self._raw_data['price'])
+        print(self._raw_data['condition_id'])
 
     def __getitem__(self, idx: int):
         pass
