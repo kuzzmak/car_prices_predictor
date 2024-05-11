@@ -174,18 +174,22 @@ def load_data(data_path: str) -> pd.DataFrame:
 
 if __name__ == '__main__':
     data_path = r'ML_zadatak_auti.csv'
-    dataset_fields = [
-        ('yearManufactured', FieldType.NUMERICAL),
-        ('mileage', FieldType.NUMERICAL),
-        ('motorSize', FieldType.NUMERICAL),
-        ('motorPower', FieldType.NUMERICAL),
-        ('fuelConsumption', FieldType.NUMERICAL),
-        ('co2Emission', FieldType.NUMERICAL),
-        ('transmissionTypeId', FieldType.CATEGORICAL),
-    ]
-    # dataset_fields = ['yearManufactured', 'mileage', 'motorSize', 'motorPower',]
-                      #'fuelConsumption', 'co2Emission', 'transmissionTypeId']
-    dataset = CarAdDataset(data_path, dataset_fields)
+    df = pd.read_csv(data_path)
+    df_train_val = df[df['condition_id'] == 20]
+    df_test = df[df['condition_id'] == 40]
+    print('number of train and val exmaples:', len(df_train_val))
+    print('number of test examples:', len(df_test))
+    print('number of examples:', len(df))
+    # dataset_fields = [
+    #     ('yearManufactured', FieldType.NUMERICAL),
+    #     ('mileage', FieldType.NUMERICAL),
+    #     ('motorSize', FieldType.NUMERICAL),
+    #     ('motorPower', FieldType.NUMERICAL),
+    #     ('fuelConsumption', FieldType.NUMERICAL),
+    #     ('co2Emission', FieldType.NUMERICAL),
+    #     ('transmissionTypeId', FieldType.CATEGORICAL),
+    # ]
+    # dataset = CarAdDataset(data_path, dataset_fields)
     # print(dataset._raw_data['mileage'])
     # X = load_data(data_path)
 
