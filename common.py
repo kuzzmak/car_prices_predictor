@@ -15,6 +15,7 @@ VALID_ADDITIONAL_FIELDS = set(
         'fuelConsumption',
         'co2Emission',
         'transmissionTypeId',
+        'manufacturerId',
     ]
 )
 
@@ -45,7 +46,7 @@ class Field:
             raise ValueError('Field not supported')
         if type not in FieldType:
             raise ValueError('Field type not supported')
-        
+
         self._name = name
         self._type = type
 
@@ -58,7 +59,7 @@ class Field:
             str: The name of the field.
         """
         return self._name
-    
+
     @property
     def type(self) -> FieldType:
         """
@@ -68,7 +69,7 @@ class Field:
             FieldType: The type of the field.
         """
         return self._type
-    
+
     def __str__(self) -> str:
         """
         Returns a string representation of the Field object.
@@ -91,21 +92,23 @@ class Feature:
     @property
     def type(self) -> FieldType:
         return self._field.type
-    
+
     @property
     def data(self) -> pd.Series:
         return self._data
-    
+
     @property
     def mean(self) -> float:
         if self._mean is None:
-            raise ValueError('Mean has not been calculated yet or field type if not numerical')
+            raise ValueError(
+                'Mean has not been calculated yet or field type if not numerical')
         return self._mean
-    
+
     @property
     def std(self) -> float:
         if self._std is None:
-            raise ValueError('Standard deviation has not been calculated yet or field type if not numerical')
+            raise ValueError(
+                'Standard deviation has not been calculated yet or field type if not numerical')
         return self._std
 
     def normalize(self) -> None:
@@ -118,12 +121,14 @@ class Feature:
             if self._field.name == 'transmissionTypeId':
                 self._data = self._input_data.map(TRANSMISSON_MAPPING)
             else:
-                raise ValueError('Future not yet supported')
-        
+                if self._field.name == 'manufacturerId':
+                    self._data = self._input_data
+                else:
+                    raise ValueError('Future not yet supported')
+
     def to_tensor(self) -> torch.Tensor:
         if self._data is None:
             raise ValueError('Data has not been normalized yet')
-        
 
         if self.type == FieldType.CATEGORICAL:
             tensor = torch.tensor(self._data.values, dtype=torch.int64)
@@ -131,6 +136,7 @@ class Feature:
         else:
             tensor = torch.tensor(self._data.values, dtype=torch.float32)
             return tensor.reshape(-1, 1)
+
 
 # Mapping of transmission types to numerical values which are necessary for
 # one hot encoding
