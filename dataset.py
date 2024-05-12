@@ -5,7 +5,12 @@ from typing import Dict, List, Tuple
 import numpy as np
 import pandas as pd
 import torch
-from torch.utils.data import DataLoader, Dataset, random_split
+from torch.utils.data import (
+    DataLoader,
+    Dataset,
+    PreprocessingType,
+    random_split,
+)
 
 from common import Feature, Field, FieldType
 
@@ -43,7 +48,8 @@ def extract_field_from_json_object(json_object, field: str):
     return json_object.get(field)
 
 
-def get_series_from_additional_fields_json(additional_fields_json: pd.Series, key: str):
+def get_series_from_additional_fields_json(additional_fields_json: pd.Series,
+                                           key: str):
     """
     Extracts a specific field from a JSON object in each element of a pandas
     Series.
@@ -57,7 +63,9 @@ def get_series_from_additional_fields_json(additional_fields_json: pd.Series, ke
     pd.Series: A new pandas Series containing the extracted field from each
         JSON object.
     """
-    return additional_fields_json.apply(lambda x: extract_field_from_json_object(x, key))
+    return additional_fields_json.apply(
+        lambda x: extract_field_from_json_object(x, key)
+    )
 
 
 class CarAdDataset(Dataset):
@@ -72,6 +80,8 @@ class CarAdDataset(Dataset):
             fields and their types.
         split (str): The split of the dataset ('train_val' or 'test').
         device (torch.device): The device on which to load the data.
+        preprocessing_type (PreprocessingType): The type of preprocessing to
+            apply to the data.
 
     Attributes:
         fields (List[Field]): The list of Field objects representing the
@@ -79,13 +89,20 @@ class CarAdDataset(Dataset):
 
     """
 
-    def __init__(self, data_path: str, fields: List[Tuple[str, FieldType]], split: str, device: torch.device) -> None:
+    def __init__(
+        self,
+        data_path: str,
+        fields: List[Tuple[str, FieldType]],
+        split: str, device: torch.device,
+        preprocessing_type: PreprocessingType,
+    ) -> None:
         super().__init__()
 
         self._data_path = data_path
         self._fields = [Field(*f) for f in fields]
         self._split = split
         self._device = device
+        self._pp_type = preprocessing_type
 
         self._df = self._load_data()
         self._raw_data = self._prepare_raw_data(self._df)
@@ -137,7 +154,10 @@ class CarAdDataset(Dataset):
         raw_data['price'] = df['price']
         return raw_data
 
-    def _construct_features(self, preprocessed_data: Dict[str, pd.Series]) -> Dict[str, Feature]:
+    def _construct_features(
+        self,
+        preprocessed_data: Dict[str, pd.Series],
+    ) -> Dict[str, Feature]:
         """
         Construct the features from the preprocessed data.
 
@@ -153,7 +173,7 @@ class CarAdDataset(Dataset):
         features = {}
         for field in self.fields:
             f = Feature(preprocessed_data[field.name], field)
-            f.normalize()
+            f.standardize()
             features[field.name] = f
         return features
 
@@ -192,7 +212,11 @@ class CarAdDataset(Dataset):
                 series = series.astype(float)
                 series[series > 500] = np.NaN
             else:
-                if field.name not in ['yearManufactured', 'transmissionTypeId', 'manufacturerId']:
+                if field.name not in [
+                    'yearManufactured',
+                    'transmissionTypeId',
+                    'manufacturerId'
+                ]:
                     raise ValueError('Field not yet supported')
 
             null_entries.append(series.isnull())
@@ -205,7 +229,9 @@ class CarAdDataset(Dataset):
 
         # remove all rows that had in any column some null value
         preprocessed_data = {
-            key: preprocessed_data[key][~to_remove] for key in preprocessed_data}
+            key: preprocessed_data[key][~to_remove]
+            for key in preprocessed_data
+        }
 
         print('Constructing features...')
         features = self._construct_features(preprocessed_data)
@@ -213,7 +239,9 @@ class CarAdDataset(Dataset):
         print('Converting features to tensors...')
         feat_tensors = {key: features[key].to_tensor() for key in features}
         feat_tensors['price'] = torch.tensor(
-            self._raw_data['price'][~to_remove].values, dtype=torch.float32).reshape(-1, 1)
+            self._raw_data['price'][~to_remove].values,
+            dtype=torch.float32
+        ).reshape(-1, 1)
 
         print(f'Number of {self._split} samples loaded:',
               len(feat_tensors['price']))
@@ -251,9 +279,13 @@ class CarAdDataset(Dataset):
         return x, y
 
 
-def get_datasets(data_path: str, fields: List[Tuple[str, FieldType]],
-                 device: torch.device, train_val_split: List[int] = [0.7, 0.3],
-                 seed: int = 42) -> Dict[str, CarAdDataset]:
+def get_datasets(
+    data_path: str,
+    fields: List[Tuple[str, FieldType]],
+    device: torch.device,
+    train_val_split: List[int] = [0.7, 0.3],
+    seed: int = 42,
+) -> Dict[str, CarAdDataset]:
     """
     Create train, validation, and test datasets for car advertisement
     prediction.
@@ -270,7 +302,8 @@ def get_datasets(data_path: str, fields: List[Tuple[str, FieldType]],
             Defaults to 42.
 
     Returns:
-        Dict[str, CarAdDataset]: A dictionary containing the train, validation, and test datasets.
+        Dict[str, CarAdDataset]: A dictionary containing the train, validation,
+            and test datasets.
     """
     train_val_dataset = CarAdDataset(data_path, fields, 'train_val', device)
     generator = torch.Generator().manual_seed(seed)
@@ -280,7 +313,11 @@ def get_datasets(data_path: str, fields: List[Tuple[str, FieldType]],
     return {'train': train_dataset, 'val': val_dataset, 'test': test_dataset}
 
 
-def get_data_loaders(datasets: Dict[str, CarAdDataset], batch_size: int, num_workers: int = 0) -> Dict[str, torch.utils.data.DataLoader]:
+def get_data_loaders(
+    datasets: Dict[str, CarAdDataset],
+    batch_size: int,
+    num_workers: int = 0,
+) -> Dict[str, torch.utils.data.DataLoader]:
     """
     Create data loaders for the train, validation, and test datasets.
 
@@ -295,4 +332,11 @@ def get_data_loaders(datasets: Dict[str, CarAdDataset], batch_size: int, num_wor
         Dict[str, torch.utils.data.DataLoader]: A dictionary containing the
             train, validation, and test data loaders.
     """
-    return {split: DataLoader(dataset, batch_size=batch_size,num_workers=num_workers) for split, dataset in datasets.items()}
+    return {
+        split: DataLoader(
+            dataset,
+            batch_size=batch_size,
+            shuffle=True,
+            num_workers=num_workers
+        ) for split, dataset in datasets.items()
+    }
