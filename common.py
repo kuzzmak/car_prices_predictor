@@ -20,6 +20,13 @@ VALID_ADDITIONAL_FIELDS = set(
 )
 
 
+class PreprocessingType(Enum):
+    """Represents the type of preprocessing that should be applied to the data.
+    """
+    STANDARDIZATION = 'standardization'
+    NORMALIZATION = 'normalization'
+
+
 class FieldType(Enum):
     """Represents the type of a field in a dataset."""
     NUMERICAL = 'numeric'
@@ -28,7 +35,8 @@ class FieldType(Enum):
 
 class Field:
     """
-    Represents a feature in the car ad dataset. Each field has a name and a type.
+    Represents a feature in the car ad dataset. Each field has a name and a
+    type.
     """
 
     def __init__(self, name: str, type: FieldType):
@@ -101,17 +109,39 @@ class Feature:
     def mean(self) -> float:
         if self._mean is None:
             raise ValueError(
-                'Mean has not been calculated yet or field type if not numerical')
+                'Mean has not been calculated yet or field '
+                'type if not numerical'
+            )
         return self._mean
 
     @property
     def std(self) -> float:
         if self._std is None:
             raise ValueError(
-                'Standard deviation has not been calculated yet or field type if not numerical')
+                'Standard deviation has not been calculated yet or '
+                'field type if not numerical'
+            )
         return self._std
 
-    def normalize(self) -> None:
+    @property
+    def min(self) -> float:
+        if self._min is None:
+            raise ValueError(
+                'Min has not been calculated yet or field '
+                'type if not numerical'
+            )
+        return self._min
+
+    @property
+    def max(self) -> float:
+        if self._max is None:
+            raise ValueError(
+                'Max has not been calculated yet or field '
+                'type if not numerical'
+            )
+        return self._max
+
+    def standardize(self) -> None:
         if self.type == FieldType.NUMERICAL:
             # numerical fields are z-scored
             self._data, self._mean, self._std = z_score(self._input_data)
@@ -126,9 +156,24 @@ class Feature:
                 else:
                     raise ValueError('Future not yet supported')
 
+    def normalize(self) -> None:
+        if self.type == FieldType.NUMERICAL:
+            # numerical fields are normalized
+            self._data, self._max, self._min = normalize(self._input_data)
+        elif self.type == FieldType.CATEGORICAL:
+            # categorical fields are one-hot encoded so it's necessary to
+            # convert each category to an integer
+            if self._field.name == 'transmissionTypeId':
+                self._data = self._input_data.map(TRANSMISSON_MAPPING)
+            else:
+                if self._field.name == 'manufacturerId':
+                    self._data = self._input_data
+                else:
+                    raise ValueError('Future not yet supported')
+
     def to_tensor(self) -> torch.Tensor:
         if self._data is None:
-            raise ValueError('Data has not been normalized yet')
+            raise ValueError('Data has not been standardized yet')
 
         if self.type == FieldType.CATEGORICAL:
             tensor = torch.tensor(self._data.values, dtype=torch.int64)
@@ -156,10 +201,27 @@ def z_score(series: pd.Series) -> Tuple[pd.Series, float, float]:
     series (pd.Series): The input series.
 
     Returns:
-    Tuple[pd.Series, float, float]: A tuple containing the z-scores of the series,
-    the mean of the series, and the standard deviation of the series.
+    Tuple[pd.Series, float, float]: A tuple containing the z-scores of the
+    series, the mean of the series, and the standard deviation of the series.
     """
     mean = series.mean()
     std = series.std()
     res = (series - mean) / std
     return res, mean, std
+
+
+def normalize(series: pd.Series) -> Tuple[pd.Series, float, float]:
+    """
+    Normalize a pandas Series.
+
+    Parameters:
+    series (pd.Series): The input Series to be normalized.
+
+    Returns:
+    Tuple[pd.Series, float, float]: A tuple containing the normalized Series,
+        the maximum value, and the minimum value.
+    """
+    min = series.min()
+    max = series.max()
+    res = (series - min) / (max - min)
+    return res, max, min
