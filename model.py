@@ -5,7 +5,11 @@ import torch.nn as nn
 
 
 class MLP(nn.Module):
-    def __init__(self, shapes: List[int], activation: nn.Module = nn.LeakyReLU) -> None:
+    def __init__(
+        self,
+        shapes: List[int],
+        activation: nn.Module = nn.LeakyReLU,
+    ) -> None:
         super().__init__()
 
         self.act = activation()
