@@ -53,7 +53,11 @@ def load_data(data_path: str) -> pd.DataFrame:
             lambda x: extract_field_from_json_object(x, key))
 
     model_id = get_series_from_additional_fields_json('modelId')
-    print(len(model_id.unique()))
+    model_id_nan_vals = model_id.isnull()
+    model_id = model_id[~model_id_nan_vals]
+    model_id_tensor = torch.tensor(model_id.values, dtype=torch.int64)
+    model_id_one_hot = F.one_hot(model_id_tensor)
+    print(model_id_one_hot.shape)
     # print(model_id.max())
 
     # model_type = get_series_from_additional_fields_json('modelType')
