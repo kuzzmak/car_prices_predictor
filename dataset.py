@@ -5,14 +5,9 @@ from typing import Dict, List, Tuple
 import numpy as np
 import pandas as pd
 import torch
-from torch.utils.data import (
-    DataLoader,
-    Dataset,
-    PreprocessingType,
-    random_split,
-)
+from torch.utils.data import DataLoader, Dataset, random_split
 
-from common import Feature, Field, FieldType
+from common import Feature, Field, FieldType, PreprocessingType
 
 
 def get_additional_fields_json(df: pd.DataFrame):
@@ -173,7 +168,12 @@ class CarAdDataset(Dataset):
         features = {}
         for field in self.fields:
             f = Feature(preprocessed_data[field.name], field)
-            f.standardize()
+            if self._pp_type == PreprocessingType.STANDARDIZATION:
+                f.standardize()
+            elif self._pp_type == PreprocessingType.NORMALIZATION:
+                f.normalize()
+            else:
+                raise ValueError('Preprocessing type not supported')
             features[field.name] = f
         return features
 
@@ -240,7 +240,7 @@ class CarAdDataset(Dataset):
         feat_tensors = {key: features[key].to_tensor() for key in features}
         feat_tensors['price'] = torch.tensor(
             self._raw_data['price'][~to_remove].values,
-            dtype=torch.float32
+            dtype=torch.float32,
         ).reshape(-1, 1)
 
         print(f'Number of {self._split} samples loaded:',
@@ -283,6 +283,7 @@ def get_datasets(
     data_path: str,
     fields: List[Tuple[str, FieldType]],
     device: torch.device,
+    preprocessing_type: PreprocessingType,
     train_val_split: List[int] = [0.7, 0.3],
     seed: int = 42,
 ) -> Dict[str, CarAdDataset]:
@@ -295,6 +296,8 @@ def get_datasets(
         fields (List[Tuple[str, FieldType]]): A list of tuples representing
             the fields and their types.
         device (torch.device): The device on which to load the data.
+        preprocessing_type (PreprocessingType): The type of preprocessing to
+            apply to the data.
         train_val_split (List[int], optional): A list of two integers
             representing the train-validation split ratio.
             Defaults to [0.7, 0.3].
@@ -305,11 +308,26 @@ def get_datasets(
         Dict[str, CarAdDataset]: A dictionary containing the train, validation,
             and test datasets.
     """
-    train_val_dataset = CarAdDataset(data_path, fields, 'train_val', device)
+    train_val_dataset = CarAdDataset(
+        data_path,
+        fields,
+        'train_val',
+        device,
+        preprocessing_type,
+    )
     generator = torch.Generator().manual_seed(seed)
     train_dataset, val_dataset = random_split(
-        train_val_dataset, train_val_split, generator=generator)
-    test_dataset = CarAdDataset(data_path, fields, 'test', device)
+        train_val_dataset,
+        train_val_split,
+        generator=generator,
+    )
+    test_dataset = CarAdDataset(
+        data_path,
+        fields,
+        'test',
+        device,
+        preprocessing_type,
+    )
     return {'train': train_dataset, 'val': val_dataset, 'test': test_dataset}
 
 
