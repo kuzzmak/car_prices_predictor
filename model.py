@@ -5,8 +5,7 @@ import torch.nn as nn
 
 
 class MLP(nn.Module):
-
-    def __init__(self, shapes: List[int], activation: nn.Module = nn.ReLU) -> None:
+    def __init__(self, shapes: List[int], activation: nn.Module = nn.LeakyReLU) -> None:
         super().__init__()
 
         self.act = activation()
@@ -18,4 +17,5 @@ class MLP(nn.Module):
     def forward(self, x) -> torch.Tensor:
         for i in range(self._num_layers):
             x = getattr(self, f'fc_{i}')(x)
+            x = self.act(x)
         return x
