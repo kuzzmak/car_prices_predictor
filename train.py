@@ -1,19 +1,43 @@
 from datetime import datetime
+import os
 from typing import List, Tuple
 
 from tensorboardX import SummaryWriter
 import torch
+from tqdm import tqdm
 
 from common import FieldType
 from dataset import get_data_loaders, get_datasets
 from model import MLP
 
 
-def train_one_epoch(model: MLP, dataloader: torch.utils.data.DataLoader, optimizer: torch.optim.Optimizer, criterion: torch.nn.Module, epoch: int, log_freq: int = 10) -> float:
+LOG_TO_TENSORBOARD = int(os.environ.get('LOG_TO_TENSORBOARD', 0))
+
+
+def train_one_epoch(
+    model: MLP,
+    dataloader: torch.utils.data.DataLoader,
+    optimizer: torch.optim.Optimizer,
+    criterion: torch.nn.Module,
+    epoch: int,
+    log_freq: int = 10,
+) -> float:
     running_loss = 0.0
     last_loss = 0.0
 
-    for i, (inputs, labels) in enumerate(dataloader):
+    desc = 'Epoch {epoch} - batch {curr_batch}/{total_batches} - train loss: {loss}'
+
+    pbar = tqdm(
+        dataloader,
+        desc=desc.format(
+            epoch=epoch,
+            curr_batch=0,
+            total_batches=len(dataloader),
+            loss=float('inf'),
+        ),
+    )
+
+    for i, (inputs, labels) in enumerate(pbar):
         # zero the parameter gradients
         optimizer.zero_grad()
 
@@ -25,22 +49,44 @@ def train_one_epoch(model: MLP, dataloader: torch.utils.data.DataLoader, optimiz
 
         # print statistics
         running_loss += loss.item()
-        if i % log_freq == 0:
+        if i % log_freq == 0 and i > 0:
             last_loss = running_loss / log_freq
-            print(f'Batch: {i + 1} loss: {last_loss}')
+            pbar.set_description(
+                desc.format(
+                    epoch=epoch,
+                    curr_batch=i,
+                    total_batches=len(dataloader),
+                    loss=last_loss
+                )
+            )
             running_loss = 0.0
 
     return last_loss
 
 
-def train(data_path: str, fields: List[Tuple[str, FieldType]], batch_size: int, epochs: int, lr: float, model_shapes: List[int], device: torch.device, num_workers: int = 1, epoch_log_frqg: int = 1, batch_log_freq: int = 100) -> None:
+def train(
+    data_path: str,
+    fields: List[Tuple[str, FieldType]],
+    batch_size: int,
+    epochs: int,
+    lr: float,
+    model_shapes: List[int],
+    device: torch.device,
+    num_workers: int = 1,
+    epoch_log_frqg: int = 1,
+    batch_log_freq: int = 100,
+) -> None:
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    logger = SummaryWriter('runs/' + timestamp)
+
+    if LOG_TO_TENSORBOARD:
+        logger = SummaryWriter('runs/' + timestamp)
 
     datasets = get_datasets(data_path, fields, device)
     dataloaders = get_data_loaders(datasets, batch_size, num_workers)
     model = MLP(model_shapes)
     model = model.to(device)
+
+    best_loss = float('inf')
 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     criterion = torch.nn.MSELoss()
@@ -48,13 +94,24 @@ def train(data_path: str, fields: List[Tuple[str, FieldType]], batch_size: int, 
     for epoch in range(epochs):
         model.train(True)
         train_loss = train_one_epoch(
-            model, dataloaders['train'], optimizer, criterion, epoch, batch_log_freq)
+            model,
+            dataloaders['train'],
+            optimizer,
+            criterion,
+            epoch,
+            batch_log_freq,
+        )
         print(f'Epoch {epoch + 1} train loss: {train_loss}')
 
-        logger.add_scalar('train_loss', train_loss, epoch)
-        for tag, value in model.named_parameters():
-            if value.grad is not None:
-                logger.add_histogram(tag + '/grad', value.grad.cpu(), epoch)
+        if LOG_TO_TENSORBOARD:
+            logger.add_scalar('train_loss', train_loss, epoch)
+            for tag, value in model.named_parameters():
+                if value.grad is not None:
+                    logger.add_histogram(
+                        tag + '/grad',
+                        value.grad.cpu(),
+                        epoch,
+                    )
 
         model.eval()
         running_loss = 0.0
@@ -65,9 +122,14 @@ def train(data_path: str, fields: List[Tuple[str, FieldType]], batch_size: int, 
                 running_loss += loss.item()
 
         avg_loss = running_loss / len(dataloaders['val'])
+        if avg_loss < best_loss:
+            best_loss = avg_loss
+            # torch.save(model.state_dict(), f'best_model_{timestamp}.pth')
         print(f'Validation loss: {avg_loss}')
+        print('Best loss:', best_loss)
 
-        logger.add_scalar('val_loss', avg_loss, epoch)
+        if LOG_TO_TENSORBOARD:
+            logger.add_scalar('val_loss', avg_loss, epoch)
 
 
 if __name__ == '__main__':
@@ -84,9 +146,11 @@ if __name__ == '__main__':
     ]
     batch_size = 64
     epochs = 10
-    lr = 0.01
-    model_shapes = [76, 128, 64, 32, 16, 1]
-    model_shapes = [76, 32, 16, 1]
+    lr = 0.1
+    model_shapes = [76, 128, 128, 64, 32, 16, 1]
+    model_shapes = [76, 20, 1]
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = 'cpu'
     num_workers = 0
-    train(data_path, dataset_fields, batch_size, epochs, lr, model_shapes, device, num_workers)
+    train(data_path, dataset_fields, batch_size,
+          epochs, lr, model_shapes, device, num_workers)
