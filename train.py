@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import List, Tuple
 
 from tensorboardX import SummaryWriter
@@ -32,19 +33,41 @@ def train_one_epoch(model: MLP, dataloader: torch.utils.data.DataLoader, optimiz
     return last_loss
 
 
-def train(data_path: str, fields: List[Tuple[str, FieldType]], batch_size: int, epochs: int, lr: float, model_shapes: List[int], logger: SummaryWriter, epoch_log_frqg: int = 1, batch_log_freq: int = 100) -> None:
-    datasets = get_datasets(data_path, fields)
+def train(data_path: str, fields: List[Tuple[str, FieldType]], batch_size: int, epochs: int, lr: float, model_shapes: List[int], device: torch.device, epoch_log_frqg: int = 1, batch_log_freq: int = 100) -> None:
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    logger = SummaryWriter('runs/' + timestamp)
+
+    datasets = get_datasets(data_path, fields, device)
     dataloaders = get_data_loaders(datasets, batch_size)
     model = MLP(model_shapes)
+    model = model.to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     criterion = torch.nn.MSELoss()
 
     for epoch in range(epochs):
-        epoch_loss = train_one_epoch(
+        model.train(True)
+        train_loss = train_one_epoch(
             model, dataloaders['train'], optimizer, criterion, epoch, batch_log_freq)
-        logger.add_scalar('loss', epoch_loss, epoch)
-        print(f'Epoch {epoch + 1} loss: {epoch_loss}')
+        print(f'Epoch {epoch + 1} train loss: {train_loss}')
+
+        logger.add_scalar('train_loss', train_loss, epoch)
+        for tag, value in model.named_parameters():
+            if value.grad is not None:
+                logger.add_histogram(tag + '/grad', value.grad.cpu(), epoch)
+
+        model.eval()
+        running_loss = 0.0
+        with torch.no_grad():
+            for i, (inputs, labels) in enumerate(dataloaders['val']):
+                outputs = model(inputs)
+                loss = criterion(outputs, labels)
+                running_loss += loss.item()
+
+        avg_loss = running_loss / len(dataloaders['val'])
+        print(f'Validation loss: {avg_loss}')
+
+        logger.add_scalar('val_loss', avg_loss, epoch)
 
 
 if __name__ == '__main__':
@@ -57,10 +80,12 @@ if __name__ == '__main__':
         # ('fuelConsumption', FieldType.NUMERICAL),
         # ('co2Emission', FieldType.NUMERICAL),
         # ('transmissionTypeId', FieldType.CATEGORICAL),
+        ('manufacturerId', FieldType.CATEGORICAL)
     ]
-    batch_size = 16
+    batch_size = 64
     epochs = 10
     lr = 0.01
-    model_shapes = [4, 10, 10, 1]
-    logger = SummaryWriter('runs', flush_secs=10)
-    train(data_path, dataset_fields, batch_size, epochs, lr, model_shapes, logger)
+    model_shapes = [76, 128, 64, 32, 16, 1]
+    model_shapes = [76, 32, 16, 1]
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    train(data_path, dataset_fields, batch_size, epochs, lr, model_shapes, device)
