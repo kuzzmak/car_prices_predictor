@@ -33,12 +33,12 @@ def train_one_epoch(model: MLP, dataloader: torch.utils.data.DataLoader, optimiz
     return last_loss
 
 
-def train(data_path: str, fields: List[Tuple[str, FieldType]], batch_size: int, epochs: int, lr: float, model_shapes: List[int], device: torch.device, epoch_log_frqg: int = 1, batch_log_freq: int = 100) -> None:
+def train(data_path: str, fields: List[Tuple[str, FieldType]], batch_size: int, epochs: int, lr: float, model_shapes: List[int], device: torch.device, num_workers: int = 1, epoch_log_frqg: int = 1, batch_log_freq: int = 100) -> None:
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     logger = SummaryWriter('runs/' + timestamp)
 
     datasets = get_datasets(data_path, fields, device)
-    dataloaders = get_data_loaders(datasets, batch_size)
+    dataloaders = get_data_loaders(datasets, batch_size, num_workers)
     model = MLP(model_shapes)
     model = model.to(device)
 
@@ -88,4 +88,5 @@ if __name__ == '__main__':
     model_shapes = [76, 128, 64, 32, 16, 1]
     model_shapes = [76, 32, 16, 1]
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    train(data_path, dataset_fields, batch_size, epochs, lr, model_shapes, device)
+    num_workers = 0
+    train(data_path, dataset_fields, batch_size, epochs, lr, model_shapes, device, num_workers)
