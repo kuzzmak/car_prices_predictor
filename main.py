@@ -5,9 +5,10 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.nn.functional as F
+from torch.utils.data import Dataset, random_split
 
 from common import FieldType
-from dataset import CarAdDataset
+from dataset import CarAdDataset, get_datasets
 from model import MLP
 
 TRANSMISSON_MAPPING = {
@@ -174,22 +175,30 @@ def load_data(data_path: str) -> pd.DataFrame:
 
 if __name__ == '__main__':
     data_path = r'ML_zadatak_auti.csv'
-    df = pd.read_csv(data_path)
-    df_train_val = df[df['condition_id'] == 20]
-    df_test = df[df['condition_id'] == 40]
-    print('number of train and val exmaples:', len(df_train_val))
-    print('number of test examples:', len(df_test))
-    print('number of examples:', len(df))
-    # dataset_fields = [
-    #     ('yearManufactured', FieldType.NUMERICAL),
-    #     ('mileage', FieldType.NUMERICAL),
-    #     ('motorSize', FieldType.NUMERICAL),
-    #     ('motorPower', FieldType.NUMERICAL),
-    #     ('fuelConsumption', FieldType.NUMERICAL),
-    #     ('co2Emission', FieldType.NUMERICAL),
-    #     ('transmissionTypeId', FieldType.CATEGORICAL),
-    # ]
-    # dataset = CarAdDataset(data_path, dataset_fields)
+    # df = pd.read_csv(data_path)
+    # df_train_val = df[df['condition_id'] == 20]
+    # df_test = df[df['condition_id'] == 40]
+    # print('number of train and val exmaples:', len(df_train_val))
+    # print('number of test examples:', len(df_test))
+    # print('number of examples:', len(df))
+    dataset_fields = [
+        ('yearManufactured', FieldType.NUMERICAL),
+        ('mileage', FieldType.NUMERICAL),
+        ('motorSize', FieldType.NUMERICAL),
+        ('motorPower', FieldType.NUMERICAL),
+        # ('fuelConsumption', FieldType.NUMERICAL),
+        # ('co2Emission', FieldType.NUMERICAL),
+        # ('transmissionTypeId', FieldType.CATEGORICAL),
+    ]
+    datasets = get_datasets(data_path, dataset_fields)
+    for x, y in datasets['train']:
+        print(x, y)
+        break
+    # train_val_dataset = CarAdDataset(data_path, dataset_fields, 'train_val')
+    # test_dataset = CarAdDataset(data_path, dataset_fields, 'test')
+
+    # for i in range(100):
+    #     print(i, train_val_dataset[i])
     # print(dataset._raw_data['mileage'])
     # X = load_data(data_path)
 
@@ -198,28 +207,3 @@ if __name__ == '__main__':
     # res = model(X)
 
     # print(res.shape)
-
-    # normalized_mileage, mileage_mean, mileage_std = z_score(mileage)
-
-    # 20, 40
-    # condition_id_vals = df['condition_id'].unique()
-    # ad_titles = df['ad_title']
-    # prices = df['price']
-    # normalize car prices by z score normalization
-    # normalized_prices, price_mean, price_std = z_score(prices)
-
-    # duplicated_additional_fields = df.iloc[additional_fields[additional_fields.duplicated()].index]
-
-    # duplicated_titles = df[df.duplicated(subset=['ad_title'], keep=False)]
-    # print(duplicated_titles)
-    # print('len duplicated additional fields', len(duplicated_additional_fields))
-    # for idx, row in duplicated_additional_fields.iterrows():
-    #     print(row['ad_title'])
-    #     print(row['additional_fields'])
-    #     print(idx)
-
-    # print(df.iloc[additional_fields[additional_fields.duplicated()].index])
-    # for idx, row in ad_titles.items():
-    #     print(row)
-    #     if idx > 20:
-    #         break
