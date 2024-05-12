@@ -61,18 +61,20 @@ class CarAdDataset(Dataset):
         data_path (str): The path to the CSV file containing the car advertisement data.
         fields (List[Tuple[str, FieldType]]): A list of tuples specifying the fields and their types.
         split (str): The split of the dataset ('train_val' or 'test').
+        device (torch.device): The device on which to load the data.
 
     Attributes:
         fields (List[Field]): The list of Field objects representing the fields in the dataset.
 
     """
 
-    def __init__(self, data_path: str, fields: List[Tuple[str, FieldType]], split: str) -> None:
+    def __init__(self, data_path: str, fields: List[Tuple[str, FieldType]], split: str, device: torch.device) -> None:
         super().__init__()
 
         self._data_path = data_path
         self._fields = [Field(*f) for f in fields]
         self._split = split
+        self._device = device
 
         self._df = self._load_data()
         self._raw_data = self._prepare_raw_data(self._df)
@@ -81,6 +83,10 @@ class CarAdDataset(Dataset):
     @property
     def fields(self) -> List[Field]:
         return self._fields
+
+    @property
+    def device(self) -> torch.device:
+        return self._device
 
     def _load_data(self) -> pd.DataFrame:
         """
@@ -167,7 +173,7 @@ class CarAdDataset(Dataset):
                 series = series.astype(float)
                 series[series > 500] = np.NaN
             else:
-                if field.name not in ['yearManufactured', 'transmissionTypeId']:
+                if field.name not in ['yearManufactured', 'transmissionTypeId', 'manufacturerId']:
                     raise ValueError('Field not yet supported')
 
             null_entries.append(series.isnull())
@@ -221,27 +227,30 @@ class CarAdDataset(Dataset):
                     for field in self.fields]
         # concatenate all features into a single tensor
         features = torch.cat(features)
-        return features, self._feat_tensors['price'][idx]
+        x = features.to(self.device)
+        y = self._feat_tensors['price'][idx].to(self.device)
+        return x, y
 
 
-def get_datasets(data_path: str, fields: List[Tuple[str, FieldType]], train_val_split: List[int] = [0.7, 0.3], seed: int = 42) -> Dict[str, CarAdDataset]:
+def get_datasets(data_path: str, fields: List[Tuple[str, FieldType]], device: torch.device, train_val_split: List[int] = [0.7, 0.3], seed: int = 42) -> Dict[str, CarAdDataset]:
     """
     Create train, validation, and test datasets for car advertisement prediction.
 
     Args:
         data_path (str): The path to the dataset.
         fields (List[Tuple[str, FieldType]]): A list of tuples representing the fields and their types.
+        device (torch.device): The device on which to load the data.
         train_val_split (List[int], optional): A list of two integers representing the train-validation split ratio. Defaults to [0.7, 0.3].
         seed (int, optional): The random seed for reproducibility. Defaults to 42.
 
     Returns:
         Dict[str, CarAdDataset]: A dictionary containing the train, validation, and test datasets.
     """
-    train_val_dataset = CarAdDataset(data_path, fields, 'train_val')
+    train_val_dataset = CarAdDataset(data_path, fields, 'train_val', device)
     generator = torch.Generator().manual_seed(seed)
     train_dataset, val_dataset = random_split(
         train_val_dataset, train_val_split, generator=generator)
-    test_dataset = CarAdDataset(data_path, fields, 'test')
+    test_dataset = CarAdDataset(data_path, fields, 'test', device)
     return {'train': train_dataset, 'val': val_dataset, 'test': test_dataset}
 
 
