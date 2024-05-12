@@ -4,9 +4,10 @@ from typing import List, Tuple
 
 from tensorboardX import SummaryWriter
 import torch
+from torch.optim.lr_scheduler import CosineAnnealingLR, ReduceLROnPlateau
 from tqdm import tqdm
 
-from common import FieldType
+from common import FieldType, PreprocessingType
 from dataset import get_data_loaders, get_datasets
 from model import MLP
 
@@ -25,19 +26,7 @@ def train_one_epoch(
     running_loss = 0.0
     last_loss = 0.0
 
-    desc = 'Epoch {epoch} - batch {curr_batch}/{total_batches} - train loss: {loss}'
-
-    pbar = tqdm(
-        dataloader,
-        desc=desc.format(
-            epoch=epoch,
-            curr_batch=0,
-            total_batches=len(dataloader),
-            loss=float('inf'),
-        ),
-    )
-
-    for i, (inputs, labels) in enumerate(pbar):
+    for i, (inputs, labels) in enumerate(dataloader):
         # zero the parameter gradients
         optimizer.zero_grad()
 
@@ -51,14 +40,6 @@ def train_one_epoch(
         running_loss += loss.item()
         if i % log_freq == 0 and i > 0:
             last_loss = running_loss / log_freq
-            pbar.set_description(
-                desc.format(
-                    epoch=epoch,
-                    curr_batch=i,
-                    total_batches=len(dataloader),
-                    loss=last_loss
-                )
-            )
             running_loss = 0.0
 
     return last_loss
@@ -72,7 +53,9 @@ def train(
     lr: float,
     model_shapes: List[int],
     device: torch.device,
+    prepocessing_type: PreprocessingType,
     num_workers: int = 1,
+    weight_decay: float = 0.0,
     epoch_log_frqg: int = 1,
     batch_log_freq: int = 100,
 ) -> None:
@@ -81,17 +64,30 @@ def train(
     if LOG_TO_TENSORBOARD:
         logger = SummaryWriter('runs/' + timestamp)
 
-    datasets = get_datasets(data_path, fields, device)
+    datasets = get_datasets(data_path, fields, device, prepocessing_type)
     dataloaders = get_data_loaders(datasets, batch_size, num_workers)
     model = MLP(model_shapes)
     model = model.to(device)
 
     best_loss = float('inf')
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+    # scheduler = ReduceLROnPlateau(optimizer, 'min', factor=0.5)
+    # scheduler = CosineAnnealingLR(optimizer, T_max=epochs * 2, eta_min=1e-5)
     criterion = torch.nn.MSELoss()
 
-    for epoch in range(epochs):
+    desc = 'best loss: {best_loss} - train loss: {train_loss} - val loss: {val_loss} - lr: {lr}'
+    pbar = tqdm(
+        range(epochs),
+        desc=desc.format(
+            best_loss=best_loss,
+            train_loss=0.0,
+            val_loss=0.0,
+            lr=lr,
+        ),
+    )
+
+    for epoch in pbar:
         model.train(True)
         train_loss = train_one_epoch(
             model,
@@ -101,7 +97,6 @@ def train(
             epoch,
             batch_log_freq,
         )
-        print(f'Epoch {epoch + 1} train loss: {train_loss}')
 
         if LOG_TO_TENSORBOARD:
             logger.add_scalar('train_loss', train_loss, epoch)
@@ -121,15 +116,25 @@ def train(
                 loss = criterion(outputs, labels)
                 running_loss += loss.item()
 
-        avg_loss = running_loss / len(dataloaders['val'])
-        if avg_loss < best_loss:
-            best_loss = avg_loss
+        val_loss = running_loss / len(dataloaders['val'])
+        if val_loss < best_loss:
+            best_loss = val_loss
             # torch.save(model.state_dict(), f'best_model_{timestamp}.pth')
-        print(f'Validation loss: {avg_loss}')
-        print('Best loss:', best_loss)
+
+        pbar.set_description(
+            desc.format(
+                best_loss=best_loss,
+                train_loss=train_loss,
+                val_loss=val_loss,
+                lr=lr,
+            )
+        )
+
+        # scheduler.step(best_loss)
 
         if LOG_TO_TENSORBOARD:
-            logger.add_scalar('val_loss', avg_loss, epoch)
+            logger.add_scalar('val_loss', val_loss, epoch)
+            # logger.add_scalar('lr', scheduler.get_last_lr(), epoch)
 
 
 if __name__ == '__main__':
@@ -141,16 +146,29 @@ if __name__ == '__main__':
         ('motorPower', FieldType.NUMERICAL),
         # ('fuelConsumption', FieldType.NUMERICAL),
         # ('co2Emission', FieldType.NUMERICAL),
-        # ('transmissionTypeId', FieldType.CATEGORICAL),
-        ('manufacturerId', FieldType.CATEGORICAL)
+        ('transmissionTypeId', FieldType.CATEGORICAL),
+        # ('manufacturerId', FieldType.CATEGORICAL)
     ]
-    batch_size = 64
-    epochs = 10
+    batch_size = 128
+    epochs = 100
     lr = 0.1
     model_shapes = [76, 128, 128, 64, 32, 16, 1]
     model_shapes = [76, 20, 1]
+    model_shapes = [8, 5, 3, 1]
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     device = 'cpu'
+    weight_decay = 1e-3
+    preprocessing_type = PreprocessingType.STANDARDIZATION
     num_workers = 0
-    train(data_path, dataset_fields, batch_size,
-          epochs, lr, model_shapes, device, num_workers)
+    train(
+        data_path,
+        dataset_fields,
+        batch_size,
+        epochs,
+        lr,
+        model_shapes,
+        device,
+        preprocessing_type,
+        num_workers,
+        weight_decay,
+    )
