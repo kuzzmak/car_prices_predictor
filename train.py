@@ -1,18 +1,24 @@
+from model import MLP
+from dataset import get_data_loaders, get_datasets
+from common import MODEL_CKPT_NAME, FieldType, PreprocessingType
+from tqdm import tqdm
+from torch.optim.lr_scheduler import CosineAnnealingLR, ReduceLROnPlateau
+import torch
 from datetime import datetime
 import os
+from pathlib import Path
 from typing import List, Tuple
 
-from tensorboardX import SummaryWriter
-import torch
-from torch.optim.lr_scheduler import CosineAnnealingLR, ReduceLROnPlateau
-from tqdm import tqdm
-
-from common import FieldType, PreprocessingType
-from dataset import get_data_loaders, get_datasets
-from model import MLP
-
-
 LOG_TO_TENSORBOARD = int(os.environ.get('LOG_TO_TENSORBOARD', 0))
+
+try:
+    from tensorboardX import SummaryWriter
+except ImportError:
+    print('TensorboardX not installed. Logging to Tensorboard will be disabled.')
+    LOG_TO_TENSORBOARD = 0
+
+
+HERE = Path(__file__).resolve().parent
 
 
 def train_one_epoch(
@@ -20,9 +26,21 @@ def train_one_epoch(
     dataloader: torch.utils.data.DataLoader,
     optimizer: torch.optim.Optimizer,
     criterion: torch.nn.Module,
-    epoch: int,
     log_freq: int = 10,
 ) -> float:
+    """
+    Trains the model for one epoch using the given dataloader and optimizer.
+
+    Args:
+        model (MLP): The model to train.
+        dataloader (torch.utils.data.DataLoader): The dataloader providing the training data.
+        optimizer (torch.optim.Optimizer): The optimizer used for training.
+        criterion (torch.nn.Module): The loss function used for training.
+        log_freq (int, optional): The frequency at which to log the training loss. Defaults to 10.
+
+    Returns:
+        float: The average loss over the last logged interval.
+    """
     running_loss = 0.0
     last_loss = 0.0
 
@@ -59,11 +77,42 @@ def train(
     epoch_log_frqg: int = 1,
     batch_log_freq: int = 100,
 ) -> None:
+    """
+    Trains a model using the provided data and hyperparameters.
+
+    Args:
+        data_path (str): The path to the data.
+        fields (List[Tuple[str, FieldType]]): The fields and their types.
+        batch_size (int): The batch size for training.
+        epochs (int): The number of epochs to train for.
+        lr (float): The learning rate.
+        model_shapes (List[int]): The shapes of the model layers.
+        device (torch.device): The device to train the model on.
+        prepocessing_type (PreprocessingType): The type of preprocessing to
+            apply to the data.
+        num_workers (int, optional): The number of workers for data loading.
+            Defaults to 1.
+        weight_decay (float, optional): The weight decay for the optimizer.
+            Defaults to 0.0.
+        epoch_log_frqg (int, optional): The frequency of logging epoch
+            information. Defaults to 1.
+        batch_log_freq (int, optional): The frequency of logging batch
+            information. Defaults to 100.
+    """
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+
+    # create directories for saving checkpoints
+    save_dir = HERE / 'ckpts' / timestamp
+    save_dir.mkdir(parents=True)
+    save_dir_last = save_dir / 'last'
+    save_dir_last.mkdir()
+    save_dir_best = save_dir / 'best'
+    save_dir_best.mkdir()
 
     if LOG_TO_TENSORBOARD:
         logger = SummaryWriter('runs/' + timestamp)
 
+    # prepare train, val and test datasets and dataloaders
     datasets = get_datasets(data_path, fields, device, prepocessing_type)
     dataloaders = get_data_loaders(datasets, batch_size, num_workers)
     model = MLP(model_shapes)
@@ -71,9 +120,10 @@ def train(
 
     best_loss = float('inf')
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+    optimizer = torch.optim.Adam(
+        model.parameters(), lr=lr, weight_decay=weight_decay)
     # scheduler = ReduceLROnPlateau(optimizer, 'min', factor=0.5)
-    # scheduler = CosineAnnealingLR(optimizer, T_max=epochs * 2, eta_min=1e-5)
+    scheduler = CosineAnnealingLR(optimizer, T_max=epochs, eta_min=1e-5)
     criterion = torch.nn.MSELoss()
 
     desc = 'best loss: {best_loss} - train loss: {train_loss} - val loss: {val_loss} - lr: {lr}'
@@ -94,7 +144,6 @@ def train(
             dataloaders['train'],
             optimizer,
             criterion,
-            epoch,
             batch_log_freq,
         )
 
@@ -108,18 +157,33 @@ def train(
                         epoch,
                     )
 
+        # validation
         model.eval()
         running_loss = 0.0
         with torch.no_grad():
-            for i, (inputs, labels) in enumerate(dataloaders['val']):
+            for inputs, labels in dataloaders['val']:
                 outputs = model(inputs)
                 loss = criterion(outputs, labels)
                 running_loss += loss.item()
 
         val_loss = running_loss / len(dataloaders['val'])
+
+        ckpt = {
+            'sd': model.state_dict(),
+            'shapes': model_shapes,
+            'fields': [f[0] for f in fields],
+        }
+
         if val_loss < best_loss:
             best_loss = val_loss
-            # torch.save(model.state_dict(), f'best_model_{timestamp}.pth')
+
+            # save best checkpoint
+            ckpt_path = save_dir_best / MODEL_CKPT_NAME
+            torch.save(ckpt, ckpt_path)
+
+        # always save current checkpoint for resuming training
+        ckpt_path = save_dir_last / MODEL_CKPT_NAME
+        torch.save(ckpt, ckpt_path)
 
         pbar.set_description(
             desc.format(
@@ -130,11 +194,11 @@ def train(
             )
         )
 
-        # scheduler.step(best_loss)
+        scheduler.step(best_loss)
 
         if LOG_TO_TENSORBOARD:
             logger.add_scalar('val_loss', val_loss, epoch)
-            # logger.add_scalar('lr', scheduler.get_last_lr(), epoch)
+            logger.add_scalar('lr', scheduler.get_last_lr(), epoch)
 
 
 if __name__ == '__main__':
