@@ -5,6 +5,8 @@ import pandas as pd
 import torch
 
 
+MODEL_CKPT_NAME = 'model.pth'
+
 # The additional fields that are currently supported in the dataset
 VALID_ADDITIONAL_FIELDS = set(
     [
