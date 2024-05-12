@@ -7,18 +7,21 @@ import pandas as pd
 import torch
 from torch.utils.data import DataLoader, Dataset, random_split
 
-from common import TRANSMISSON_MAPPING, Feature, Field, FieldType, z_score
+from common import Feature, Field, FieldType
 
 
 def get_additional_fields_json(df: pd.DataFrame):
     """
-    Convert the 'additional_fields' column of a DataFrame into a list of JSON objects.
+    Convert the 'additional_fields' column of a DataFrame into a list of JSON
+    objects.
 
     Args:
-        df (pd.DataFrame): The DataFrame containing the 'additional_fields' column.
+        df (pd.DataFrame): The DataFrame containing the 'additional_fields'
+            column.
 
     Returns:
-        pd.Series: A Series containing the 'additional_fields' column as a list of JSON objects.
+        pd.Series: A Series containing the 'additional_fields' column as a
+            list of JSON objects.
     """
     additional_fields = df['additional_fields']
     additional_fields_json = additional_fields.apply(json.loads)
@@ -34,37 +37,45 @@ def extract_field_from_json_object(json_object, field: str):
         field (str): The name of the field to extract.
 
     Returns:
-        The value of the specified field if it exists in the JSON object, None otherwise.
+        The value of the specified field if it exists in the JSON object, None
+            otherwise.
     """
     return json_object.get(field)
 
 
 def get_series_from_additional_fields_json(additional_fields_json: pd.Series, key: str):
     """
-    Extracts a specific field from a JSON object in each element of a pandas Series.
+    Extracts a specific field from a JSON object in each element of a pandas
+    Series.
 
     Parameters:
-    additional_fields_json (pd.Series): A pandas Series containing JSON objects.
+    additional_fields_json (pd.Series): A pandas Series containing JSON
+        objects.
     key (str): The key of the field to extract from the JSON objects.
 
     Returns:
-    pd.Series: A new pandas Series containing the extracted field from each JSON object.
+    pd.Series: A new pandas Series containing the extracted field from each
+        JSON object.
     """
     return additional_fields_json.apply(lambda x: extract_field_from_json_object(x, key))
 
 
 class CarAdDataset(Dataset):
     """
-    A PyTorch dataset class for loading and preprocessing car advertisement data.
+    A PyTorch dataset class for loading and preprocessing car advertisement
+    data.
 
     Args:
-        data_path (str): The path to the CSV file containing the car advertisement data.
-        fields (List[Tuple[str, FieldType]]): A list of tuples specifying the fields and their types.
+        data_path (str): The path to the CSV file containing the car
+            advertisement data.
+        fields (List[Tuple[str, FieldType]]): A list of tuples specifying the
+            fields and their types.
         split (str): The split of the dataset ('train_val' or 'test').
         device (torch.device): The device on which to load the data.
 
     Attributes:
-        fields (List[Field]): The list of Field objects representing the fields in the dataset.
+        fields (List[Field]): The list of Field objects representing the
+            fields in the dataset.
 
     """
 
@@ -97,20 +108,24 @@ class CarAdDataset(Dataset):
 
         """
         df = pd.read_csv(self._data_path)
-        # test samples are marked with condition_id 20, while train and val with 40
+        # test samples are marked with condition_id 20, while train and
+        # val with 40
         cond = 20 if self._split == 'train_val' else 40
         df = df[df['condition_id'] == cond]
         return df
 
     def _prepare_raw_data(self, df: pd.DataFrame) -> Dict[str, pd.Series]:
         """
-        Prepare the raw data by extracting the required fields from the DataFrame.
+        Prepare the raw data by extracting the required fields from the
+        DataFrame.
 
         Args:
-            df (pd.DataFrame): The DataFrame containing the car advertisement data.
+            df (pd.DataFrame): The DataFrame containing the car advertisement
+                data.
 
         Returns:
-            Dict[str, pd.Series]: A dictionary mapping field names to their corresponding Series.
+            Dict[str, pd.Series]: A dictionary mapping field names to their
+                corresponding Series.
 
         """
         raw_data = {}
@@ -127,10 +142,12 @@ class CarAdDataset(Dataset):
         Construct the features from the preprocessed data.
 
         Args:
-            preprocessed_data (Dict[str, pd.Series]): A dictionary mapping field names to their preprocessed Series.
+            preprocessed_data (Dict[str, pd.Series]): A dictionary mapping
+                field names to their preprocessed Series.
 
         Returns:
-            Dict[str, Feature]: A dictionary mapping field names to their corresponding Feature objects.
+            Dict[str, Feature]: A dictionary mapping field names to their
+                corresponding Feature objects.
 
         """
         features = {}
@@ -142,10 +159,12 @@ class CarAdDataset(Dataset):
 
     def _preprocess_data(self):
         """
-        Preprocess the data by applying necessary transformations and constructing features.
+        Preprocess the data by applying necessary transformations and
+        constructing features.
 
         Returns:
-            Dict[str, torch.Tensor]: A dictionary mapping field names to their corresponding feature tensors.
+            Dict[str, torch.Tensor]: A dictionary mapping field names to their
+                corresponding feature tensors.
 
         """
         print(f'Preprocessing {self._split} data')
@@ -232,16 +251,23 @@ class CarAdDataset(Dataset):
         return x, y
 
 
-def get_datasets(data_path: str, fields: List[Tuple[str, FieldType]], device: torch.device, train_val_split: List[int] = [0.7, 0.3], seed: int = 42) -> Dict[str, CarAdDataset]:
+def get_datasets(data_path: str, fields: List[Tuple[str, FieldType]],
+                 device: torch.device, train_val_split: List[int] = [0.7, 0.3],
+                 seed: int = 42) -> Dict[str, CarAdDataset]:
     """
-    Create train, validation, and test datasets for car advertisement prediction.
+    Create train, validation, and test datasets for car advertisement
+    prediction.
 
     Args:
         data_path (str): The path to the dataset.
-        fields (List[Tuple[str, FieldType]]): A list of tuples representing the fields and their types.
+        fields (List[Tuple[str, FieldType]]): A list of tuples representing
+            the fields and their types.
         device (torch.device): The device on which to load the data.
-        train_val_split (List[int], optional): A list of two integers representing the train-validation split ratio. Defaults to [0.7, 0.3].
-        seed (int, optional): The random seed for reproducibility. Defaults to 42.
+        train_val_split (List[int], optional): A list of two integers
+            representing the train-validation split ratio.
+            Defaults to [0.7, 0.3].
+        seed (int, optional): The random seed for reproducibility.
+            Defaults to 42.
 
     Returns:
         Dict[str, CarAdDataset]: A dictionary containing the train, validation, and test datasets.
@@ -259,11 +285,14 @@ def get_data_loaders(datasets: Dict[str, CarAdDataset], batch_size: int, num_wor
     Create data loaders for the train, validation, and test datasets.
 
     Args:
-        datasets (Dict[str, CarAdDataset]): A dictionary containing the train, validation, and test datasets.
+        datasets (Dict[str, CarAdDataset]): A dictionary containing the train,
+            validation, and test datasets.
         batch_size (int): The batch size for the data loaders.
-        num_workers (int, optional): The number of workers for the data loaders. Defaults to 0.
+        num_workers (int, optional): The number of workers for the data
+            loaders. Defaults to 0.
 
     Returns:
-        Dict[str, torch.utils.data.DataLoader]: A dictionary containing the train, validation, and test data loaders.
+        Dict[str, torch.utils.data.DataLoader]: A dictionary containing the
+            train, validation, and test data loaders.
     """
-    return {split: DataLoader(dataset, batch_size=batch_size, num_workers=num_workers) for split, dataset in datasets.items()}
+    return {split: DataLoader(dataset, batch_size=batch_size,num_workers=num_workers) for split, dataset in datasets.items()}
