@@ -18,6 +18,7 @@ VALID_ADDITIONAL_FIELDS = set(
         'co2Emission',
         'transmissionTypeId',
         'manufacturerId',
+        'modelId',
     ]
 )
 
@@ -91,6 +92,18 @@ class Field:
 
 
 class Feature:
+    """
+    Represents a feature in a dataset.
+
+    Attributes:
+        type (FieldType): Type of the field in feature.
+        data (pd.Series): The processed data for the feature.
+        mean (float): The mean of the feature's data.
+        std (float): The standard deviation of the feature's data.
+        max (float): The maximum value of the feature's data.
+        min (float): The minimum value of the feature's data.
+    """
+
     def __init__(self, data: pd.Series, field: Field) -> None:
         self._input_data = data
         self._field = field
@@ -103,49 +116,95 @@ class Feature:
 
     @property
     def type(self) -> FieldType:
+        """
+        Gets the type of the feature.
+
+        Returns:
+            FieldType: The type of the feature.
+        """
         return self._field.type
 
     @property
     def data(self) -> pd.Series:
+        """
+        Gets the processed data for the feature.
+
+        Returns:
+            pd.Series: The processed data for the feature.
+        """
         return self._data
 
     @property
     def mean(self) -> float:
+        """
+        Gets the mean of the feature's data.
+
+        Returns:
+            float: The mean of the feature's data.
+
+        Raises:
+            ValueError: If the mean has not been calculated yet or the field type is not numerical.
+        """
         if self._mean is None:
             raise ValueError(
-                'Mean has not been calculated yet or field '
-                'type if not numerical'
-            )
+                'Mean has not been calculated yet or field type is not numerical')
         return self._mean
 
     @property
     def std(self) -> float:
+        """
+        Gets the standard deviation of the feature's data.
+
+        Returns:
+            float: The standard deviation of the feature's data.
+
+        Raises:
+            ValueError: If the standard deviation has not been calculated yet or the field type is not numerical.
+        """
         if self._std is None:
             raise ValueError(
-                'Standard deviation has not been calculated yet or '
-                'field type if not numerical'
-            )
+                'Standard deviation has not been calculated yet or field type is not numerical')
         return self._std
 
     @property
     def min(self) -> float:
+        """
+        Gets the minimum value of the feature's data.
+
+        Returns:
+            float: The minimum value of the feature's data.
+
+        Raises:
+            ValueError: If the minimum value has not been calculated yet or the field type is not numerical.
+        """
         if self._min is None:
             raise ValueError(
-                'Min has not been calculated yet or field '
-                'type if not numerical'
-            )
+                'Min has not been calculated yet or field type is not numerical')
         return self._min
 
     @property
     def max(self) -> float:
+        """
+        Gets the maximum value of the feature's data.
+
+        Returns:
+            float: The maximum value of the feature's data.
+
+        Raises:
+            ValueError: If the maximum value has not been calculated yet or the field type is not numerical.
+        """
         if self._max is None:
             raise ValueError(
-                'Max has not been calculated yet or field '
-                'type if not numerical'
-            )
+                'Max has not been calculated yet or field type is not numerical')
         return self._max
 
     def standardize(self) -> None:
+        """
+        Standardizes the feature's data.
+
+        Raises:
+            ValueError: If the feature type is not supported.
+        """
         if self.type == FieldType.NUMERICAL:
             # numerical fields are z-scored
             self._data, self._mean, self._std = z_score(self._input_data)
@@ -155,12 +214,19 @@ class Feature:
             if self._field.name == 'transmissionTypeId':
                 self._data = self._input_data.map(TRANSMISSON_MAPPING)
             else:
-                if self._field.name == 'manufacturerId':
+                if self._field.name == 'manufacturerId' \
+                        or self._field.name == 'modelId':
                     self._data = self._input_data
                 else:
                     raise ValueError('Future not yet supported')
 
     def normalize(self) -> None:
+        """
+        Normalizes the feature's data.
+
+        Raises:
+            ValueError: If the feature type is not supported.
+        """
         if self.type == FieldType.NUMERICAL:
             # numerical fields are normalized
             self._data, self._max, self._min = normalize(self._input_data)
@@ -170,12 +236,22 @@ class Feature:
             if self._field.name == 'transmissionTypeId':
                 self._data = self._input_data.map(TRANSMISSON_MAPPING)
             else:
-                if self._field.name == 'manufacturerId':
+                if self._field.name == 'manufacturerId' \
+                        or self._field.name == 'modelId':
                     self._data = self._input_data
                 else:
                     raise ValueError('Future not yet supported')
 
     def to_tensor(self) -> torch.Tensor:
+        """
+        Converts the feature's data to a tensor.
+
+        Returns:
+            torch.Tensor: The tensor representation of the feature's data.
+
+        Raises:
+            ValueError: If the data has not been standardized yet.
+        """
         if self._data is None:
             raise ValueError('Data has not been standardized yet')
 
