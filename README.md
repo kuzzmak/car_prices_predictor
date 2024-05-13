@@ -42,3 +42,5 @@ Trained model can be found in `runs` directory.
 - study effects of different normalization or standardization techniques on the quality of model predictor
 - different optimizators, loss functions, lr schedulers
 - train for longer and with bigger model, try overfitting
+- add early stopping
+- study layer gradients through time and how to make them "more normal"
