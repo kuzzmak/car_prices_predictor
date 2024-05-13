@@ -143,11 +143,14 @@ class Feature:
             float: The mean of the feature's data.
 
         Raises:
-            ValueError: If the mean has not been calculated yet or the field type is not numerical.
+            ValueError: If the mean has not been calculated yet or the field
+                type is not numerical.
         """
         if self._mean is None:
             raise ValueError(
-                'Mean has not been calculated yet or field type is not numerical')
+                'Mean has not been calculated yet or field type '
+                'is not numerical'
+            )
         return self._mean
 
     @property
@@ -159,11 +162,14 @@ class Feature:
             float: The standard deviation of the feature's data.
 
         Raises:
-            ValueError: If the standard deviation has not been calculated yet or the field type is not numerical.
+            ValueError: If the standard deviation has not been calculated yet
+                or the field type is not numerical.
         """
         if self._std is None:
             raise ValueError(
-                'Standard deviation has not been calculated yet or field type is not numerical')
+                'Standard deviation has not been calculated yet or field '
+                'type is not numerical'
+            )
         return self._std
 
     @property
@@ -175,11 +181,14 @@ class Feature:
             float: The minimum value of the feature's data.
 
         Raises:
-            ValueError: If the minimum value has not been calculated yet or the field type is not numerical.
+            ValueError: If the minimum value has not been calculated yet or
+                the field type is not numerical.
         """
         if self._min is None:
             raise ValueError(
-                'Min has not been calculated yet or field type is not numerical')
+                'Min has not been calculated yet or field type is '
+                'not numerical'
+            )
         return self._min
 
     @property
@@ -191,11 +200,14 @@ class Feature:
             float: The maximum value of the feature's data.
 
         Raises:
-            ValueError: If the maximum value has not been calculated yet or the field type is not numerical.
+            ValueError: If the maximum value has not been calculated yet or
+                the field type is not numerical.
         """
         if self._max is None:
             raise ValueError(
-                'Max has not been calculated yet or field type is not numerical')
+                'Max has not been calculated yet or field type is '
+                'not numerical'
+            )
         return self._max
 
     def standardize(self) -> None:
