@@ -1,20 +1,29 @@
-from model import MLP
-from dataset import get_data_loaders, get_datasets
-from common import MODEL_CKPT_NAME, FieldType, PreprocessingType
-from tqdm import tqdm
-from torch.optim.lr_scheduler import CosineAnnealingLR, ReduceLROnPlateau
-import torch
 from datetime import datetime
 import os
 from pathlib import Path
 from typing import List, Tuple
+
+from tqdm import tqdm
+from torch.optim.lr_scheduler import CosineAnnealingLR, ReduceLROnPlateau
+import torch
+
+from model import MLP
+from dataset import get_data_loaders, get_datasets
+from common import (
+    MODEL_CKPT_NAME,
+    FieldType,
+    PreprocessingType, 
+    construct_features_dict,
+)
 
 LOG_TO_TENSORBOARD = int(os.environ.get('LOG_TO_TENSORBOARD', 0))
 
 try:
     from tensorboardX import SummaryWriter
 except ImportError:
-    print('TensorboardX not installed. Logging to Tensorboard will be disabled.')
+    print(
+        'TensorboardX not installed. Logging to Tensorboard will be disabled.'
+    )
     LOG_TO_TENSORBOARD = 0
 
 
@@ -33,10 +42,12 @@ def train_one_epoch(
 
     Args:
         model (MLP): The model to train.
-        dataloader (torch.utils.data.DataLoader): The dataloader providing the training data.
+        dataloader (torch.utils.data.DataLoader): The dataloader providing th
+            training data.
         optimizer (torch.optim.Optimizer): The optimizer used for training.
         criterion (torch.nn.Module): The loss function used for training.
-        log_freq (int, optional): The frequency at which to log the training loss. Defaults to 10.
+        log_freq (int, optional): The frequency at which to log the training
+            loss. Defaults to 10.
 
     Returns:
         float: The average loss over the last logged interval.
@@ -137,6 +148,16 @@ def train(
         ),
     )
 
+    features = datasets['train'].dataset.features
+    features_dict = construct_features_dict(features, prepocessing_type)
+
+    ckpt = {
+        'sd': model.state_dict(),
+        'shapes': model_shapes,
+        'features': features_dict,
+        'preprocessing_type': prepocessing_type,
+    }
+
     for epoch in pbar:
         model.train(True)
         train_loss = train_one_epoch(
@@ -168,11 +189,8 @@ def train(
 
         val_loss = running_loss / len(dataloaders['val'])
 
-        ckpt = {
-            'sd': model.state_dict(),
-            'shapes': model_shapes,
-            'fields': [f[0] for f in fields],
-        }
+        # update model state dict because only that changes
+        ckpt.update({'sd': model.state_dict()})
 
         if val_loss < best_loss:
             best_loss = val_loss
@@ -202,7 +220,7 @@ def train(
 
 
 if __name__ == '__main__':
-    data_path = 'ML_zadatak_auti.csv'
+    data_path = 'data/ML_zadatak_auti.csv'
     dataset_fields = [
         ('yearManufactured', FieldType.NUMERICAL),
         ('mileage', FieldType.NUMERICAL),
@@ -213,14 +231,11 @@ if __name__ == '__main__':
         ('transmissionTypeId', FieldType.CATEGORICAL),
         # ('manufacturerId', FieldType.CATEGORICAL)
     ]
-    batch_size = 128
+    batch_size = 64
     epochs = 100
-    lr = 0.1
-    model_shapes = [76, 128, 128, 64, 32, 16, 1]
-    model_shapes = [76, 20, 1]
+    lr = 0.5
     model_shapes = [8, 5, 3, 1]
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    device = 'cpu'
+    device = torch.device('cpu')
     weight_decay = 1e-3
     preprocessing_type = PreprocessingType.STANDARDIZATION
     num_workers = 0
