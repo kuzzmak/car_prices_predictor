@@ -18,7 +18,6 @@ VALID_ADDITIONAL_FIELDS = set(
         'co2Emission',
         'transmissionTypeId',
         'manufacturerId',
-        'modelId',
     ]
 )
 
@@ -226,8 +225,7 @@ class Feature:
             if self._field.name == 'transmissionTypeId':
                 self._data = self._input_data.map(TRANSMISSON_MAPPING)
             else:
-                if self._field.name == 'manufacturerId' \
-                        or self._field.name == 'modelId':
+                if self._field.name == 'manufacturerId':
                     self._data = self._input_data
                 else:
                     raise ValueError('Future not yet supported')
@@ -248,8 +246,7 @@ class Feature:
             if self._field.name == 'transmissionTypeId':
                 self._data = self._input_data.map(TRANSMISSON_MAPPING)
             else:
-                if self._field.name == 'manufacturerId' \
-                        or self._field.name == 'modelId':
+                if self._field.name == 'manufacturerId':
                     self._data = self._input_data
                 else:
                     raise ValueError('Future not yet supported')

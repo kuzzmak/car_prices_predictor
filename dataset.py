@@ -222,7 +222,7 @@ class CarAdDataset(Dataset):
                 if field.name not in [
                     'yearManufactured',
                     'transmissionTypeId',
-                    'manufacturerId'
+                    'manufacturerId',
                 ]:
                     raise ValueError('Field not yet supported')
 
