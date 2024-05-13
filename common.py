@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Tuple
+from typing import Dict, Tuple
 
 import pandas as pd
 import torch
@@ -98,6 +98,8 @@ class Feature:
         self._data = None
         self._mean = None
         self._std = None
+        self._max = None
+        self._min = None
 
     @property
     def type(self) -> FieldType:
@@ -227,3 +229,42 @@ def normalize(series: pd.Series) -> Tuple[pd.Series, float, float]:
     max = series.max()
     res = (series - min) / (max - min)
     return res, max, min
+
+
+def construct_features_dict(
+    features: Dict[str, Feature],
+    prepocessing_type: PreprocessingType,
+):
+    """
+    Constructs a dictionary of features based on the given features and
+    preprocessing type.
+
+    Args:
+        features (Dict[str, Feature]): A dictionary of features where the keys
+            are feature names and the values are Feature objects.
+        prepocessing_type (PreprocessingType): The type of preprocessing to be
+            applied.
+
+    Returns:
+        Dict[str, Dict[str, Any]]: A dictionary of features where the keys are
+            feature names and the values are dictionaries containing feature
+            information.
+
+    Raises:
+        ValueError: If an unknown preprocessing type is provided.
+    """
+    features_dict = {}
+    for feat_name, feat in features.items():
+        features_dict[feat_name] = {
+            'type': feat.type,
+        }
+        if feat.type == FieldType.NUMERICAL:
+            if prepocessing_type == PreprocessingType.NORMALIZATION:
+                features_dict[feat_name]['min'] = feat.min
+                features_dict[feat_name]['max'] = feat.max
+            elif prepocessing_type == PreprocessingType.STANDARDIZATION:
+                features_dict[feat_name]['mean'] = feat.mean
+                features_dict[feat_name]['std'] = feat.std
+            else:
+                raise ValueError('Unknown preprocessing type')
+    return features_dict
