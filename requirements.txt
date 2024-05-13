@@ -4,3 +4,6 @@ torch
 
 # optional, for logging
 tensorboardX
+
+# optional, for visualization
+seaborn
