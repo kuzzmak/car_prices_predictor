@@ -81,6 +81,8 @@ class CarAdDataset(Dataset):
     Attributes:
         fields (List[Field]): The list of Field objects representing the
             fields in the dataset.
+        features (Dict[str, Feature]): A dictionary mapping field names to
+            their corresponding Feature objects.
 
     """
 
@@ -101,11 +103,16 @@ class CarAdDataset(Dataset):
 
         self._df = self._load_data()
         self._raw_data = self._prepare_raw_data(self._df)
+        self._features = None
         self._feat_tensors = self._preprocess_data()
 
     @property
     def fields(self) -> List[Field]:
         return self._fields
+
+    @property
+    def features(self):
+        return self._features
 
     @property
     def device(self) -> torch.device:
@@ -234,10 +241,12 @@ class CarAdDataset(Dataset):
         }
 
         print('Constructing features...')
-        features = self._construct_features(preprocessed_data)
+        self._features = self._construct_features(preprocessed_data)
 
         print('Converting features to tensors...')
-        feat_tensors = {key: features[key].to_tensor() for key in features}
+        feat_tensors = {
+            key: self._features[key].to_tensor() for key in self._features
+        }
         feat_tensors['price'] = torch.tensor(
             self._raw_data['price'][~to_remove].values,
             dtype=torch.float32,
